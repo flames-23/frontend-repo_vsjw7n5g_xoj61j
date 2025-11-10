@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import Header from './components/Header';
 import ProductBrowser from './components/ProductBrowser';
 import OrderTracker from './components/OrderTracker';
@@ -10,6 +10,23 @@ const App = () => {
   const [role, setRole] = useState('customer');
   const [order, setOrder] = useState(null);
   const [user, setUser] = useState(null);
+
+  useEffect(() => {
+    const saved = localStorage.getItem('user');
+    if (saved) setUser(JSON.parse(saved));
+  }, []);
+
+  const onAuth = (u) => {
+    setUser(u);
+    if (u && u.email) localStorage.setItem('user_email', u.email);
+    localStorage.setItem('user', JSON.stringify(u));
+  };
+
+  const logout = () => {
+    setUser(null);
+    localStorage.removeItem('user');
+    localStorage.removeItem('user_email');
+  };
 
   const addToOrder = (items) => {
     if (!items) return;
@@ -32,8 +49,13 @@ const App = () => {
       <Header role={role} onRoleChange={setRole} />
 
       <main className="relative z-10 max-w-6xl mx-auto px-4 py-6 space-y-6">
-        {!user && (
-          <AuthPanel onAuth={(u) => setUser(u)} />
+        {!user ? (
+          <AuthPanel onAuth={onAuth} />
+        ) : (
+          <div className="flex items-center justify-between rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-2">
+            <div className="text-sm text-slate-700 dark:text-slate-200">Signed in as <span className="font-semibold">{user.email}</span></div>
+            <button onClick={logout} className="text-sm text-blue-600">Log out</button>
+          </div>
         )}
 
         {role === 'customer' ? (
@@ -46,8 +68,8 @@ const App = () => {
             {totalItems > 0 && <OrderTracker order={order} />}
           </>
         ) : (
-          <AdminDashboard />)
-        }
+          <AdminDashboard />
+        )}
       </main>
     </div>
   );

@@ -1,30 +1,52 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Activity, AlertTriangle, Battery, Cpu, Radio, Play, Square } from 'lucide-react';
 
-const cells = Array.from({ length: 20 }, (_, i) => `A${i + 1}`);
-
 const AdminDashboard = () => {
-  const [sensorData, setSensorData] = useState(() =>
-    Object.fromEntries(cells.map((k) => [k, { stock: Math.floor(Math.random() * 12), motor: false }]))
-  );
+  const [cells, setCells] = useState([]);
   const [stream, setStream] = useState(true);
+  const [error, setError] = useState('');
 
+  // Load shelves (auto-seeded by backend)
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const base = import.meta.env.VITE_BACKEND_URL;
+        const res = await fetch(`${base}/shelves`);
+        if (!res.ok) throw new Error(`Failed to fetch shelves (${res.status})`);
+        const data = await res.json();
+        setCells(data);
+      } catch (e) {
+        setError(e.message || 'Unable to load shelves');
+      }
+    };
+    load();
+  }, []);
+
+  // Simulate sensor value drift locally while streaming
   useEffect(() => {
     if (!stream) return;
     const id = setInterval(() => {
-      setSensorData((prev) => {
-        const k = cells[Math.floor(Math.random() * cells.length)];
-        const next = { ...prev };
-        next[k] = { ...next[k], stock: Math.max(0, next[k].stock + (Math.random() > 0.5 ? 1 : -1)) };
-        return next;
-      });
-    }, 1200);
+      setCells((prev) => prev.map((c) => ({
+        ...c,
+        sensor_value: typeof c.sensor_value === 'number' ? Math.max(0, Math.min(100, c.sensor_value + (Math.random() > 0.5 ? 1 : -1))) : c.sensor_value,
+      })));
+    }, 1500);
     return () => clearInterval(id);
   }, [stream]);
 
-  const lowStock = useMemo(() => Object.entries(sensorData).filter(([_, v]) => v.stock <= 2).map(([k]) => k), [sensorData]);
+  const lowStock = useMemo(() => (cells || []).filter((c) => (c.stock ?? 0) <= 2).map((c) => c.cell_code), [cells]);
 
-  const toggleMotor = (cell) => setSensorData((s) => ({ ...s, [cell]: { ...s[cell], motor: !s[cell].motor } }));
+  const toggleMotor = async (cell_code) => {
+    try {
+      const base = import.meta.env.VITE_BACKEND_URL;
+      const res = await fetch(`${base}/shelves/${cell_code}/motor`, { method: 'POST' });
+      if (!res.ok) throw new Error('Failed to toggle motor');
+      const updated = await res.json();
+      setCells((prev) => prev.map((c) => (c.cell_code === cell_code ? updated : c)));
+    } catch (e) {
+      setError(e.message || 'Action failed');
+    }
+  };
 
   return (
     <section className="space-y-4">
@@ -60,29 +82,29 @@ const AdminDashboard = () => {
       </div>
 
       <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
-        <h4 className="font-semibold text-slate-900 dark:text-white mb-3">Shelf Map</h4>
+        <div className="flex items-center justify-between mb-3">
+          <h4 className="font-semibold text-slate-900 dark:text-white">Shelf Map</h4>
+          {error && <span className="text-sm text-rose-600">{error}</span>}
+        </div>
         <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-10 gap-2">
-          {cells.map((cell) => {
-            const info = sensorData[cell];
-            return (
-              <button
-                key={cell}
-                onClick={() => toggleMotor(cell)}
-                className={`relative aspect-square rounded-xl border p-2 text-left transition overflow-hidden ${
-                  info.stock === 0
-                    ? 'border-rose-300/60 bg-rose-50 dark:bg-rose-500/10'
-                    : info.stock <= 2
-                    ? 'border-amber-300/60 bg-amber-50 dark:bg-amber-500/10'
-                    : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900'
-                }`}
-                title={`Cell ${cell}`}
-              >
-                <div className="text-xs font-medium text-slate-600 dark:text-slate-300">{cell}</div>
-                <div className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{info.stock}</div>
-                {info.motor && <div className="absolute inset-0 bg-blue-500/10 animate-pulse" />}
-              </button>
-            );
-          })}
+          {cells.map((cell) => (
+            <button
+              key={cell.cell_code}
+              onClick={() => toggleMotor(cell.cell_code)}
+              className={`relative aspect-square rounded-xl border p-2 text-left transition overflow-hidden ${
+                (cell.stock ?? 0) === 0
+                  ? 'border-rose-300/60 bg-rose-50 dark:bg-rose-500/10'
+                  : (cell.stock ?? 0) <= 2
+                  ? 'border-amber-300/60 bg-amber-50 dark:bg-amber-500/10'
+                  : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900'
+              }`}
+              title={`Cell ${cell.cell_code}`}
+            >
+              <div className="text-xs font-medium text-slate-600 dark:text-slate-300">{cell.cell_code}</div>
+              <div className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{cell.stock ?? 0}</div>
+              {cell.motor_active && <div className="absolute inset-0 bg-blue-500/10 animate-pulse" />}
+            </button>
+          ))}
         </div>
 
         {lowStock.length > 0 && (

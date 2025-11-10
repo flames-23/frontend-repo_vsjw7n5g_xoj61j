@@ -5,10 +5,28 @@ const AuthPanel = ({ onAuth }) => {
   const [mode, setMode] = useState('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
-  const submit = (e) => {
+  const submit = async (e) => {
     e.preventDefault();
-    onAuth({ email, mode });
+    setError('');
+    setLoading(true);
+    try {
+      const base = import.meta.env.VITE_BACKEND_URL;
+      const res = await fetch(`${base}/auth/upsert`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, name: email.split('@')[0] }),
+      });
+      if (!res.ok) throw new Error(`Auth failed (${res.status})`);
+      const data = await res.json();
+      onAuth(data);
+    } catch (err) {
+      setError(err.message || 'Authentication error');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -43,11 +61,13 @@ const AuthPanel = ({ onAuth }) => {
             className="w-full pl-10 pr-3 py-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
+        {error && <div className="text-sm text-rose-600">{error}</div>}
         <button
           type="submit"
-          className="w-full inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-br from-blue-600 to-cyan-500 text-white shadow hover:shadow-md transition"
+          disabled={loading}
+          className="w-full inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-br from-blue-600 to-cyan-500 text-white shadow hover:shadow-md transition disabled:opacity-60"
         >
-          <LogIn size={18} /> {mode === 'login' ? 'Log in' : 'Sign up'}
+          <LogIn size={18} /> {loading ? 'Please wait…' : mode === 'login' ? 'Log in' : 'Sign up'}
         </button>
       </form>
     </div>
