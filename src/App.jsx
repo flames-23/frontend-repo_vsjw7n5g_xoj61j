@@ -1,28 +1,56 @@
-import { useState } from 'react'
+import React, { useMemo, useState } from 'react';
+import Header from './components/Header';
+import ProductBrowser from './components/ProductBrowser';
+import OrderTracker from './components/OrderTracker';
+import AdminDashboard from './components/AdminDashboard';
+import AuthPanel from './components/AuthPanel';
+import Spline from '@splinetool/react-spline';
 
-function App() {
-  const [count, setCount] = useState(0)
+const App = () => {
+  const [role, setRole] = useState('customer');
+  const [order, setOrder] = useState(null);
+  const [user, setUser] = useState(null);
+
+  const addToOrder = (items) => {
+    if (!items) return;
+    const merged = { ...(order || {}) };
+    Object.entries(items).forEach(([id, qty]) => {
+      if (!qty) return;
+      merged[id] = (merged[id] || 0) + qty;
+    });
+    setOrder(merged);
+  };
+
+  const totalItems = useMemo(() => (order ? Object.values(order).reduce((a, b) => a + b, 0) : 0), [order]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50 flex items-center justify-center">
-      <div className="bg-white p-8 rounded-lg shadow-lg">
-        <h1 className="text-3xl font-bold text-gray-800 mb-4">
-          Vibe Coding Platform
-        </h1>
-        <p className="text-gray-600 mb-6">
-          Your AI-powered development environment
-        </p>
-        <div className="text-center">
-          <button
-            onClick={() => setCount(count + 1)}
-            className="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded"
-          >
-            Count is {count}
-          </button>
-        </div>
+    <div className="min-h-screen bg-white dark:bg-slate-950">
+      <div className="fixed inset-0 opacity-70 pointer-events-none" aria-hidden>
+        <Spline scene="https://prod.spline.design/9gB3y4lF2m9cQeYz/scene.splinecode" style={{ width: '100%', height: '100%' }} />
       </div>
-    </div>
-  )
-}
 
-export default App
+      <Header role={role} onRoleChange={setRole} />
+
+      <main className="relative z-10 max-w-6xl mx-auto px-4 py-6 space-y-6">
+        {!user && (
+          <AuthPanel onAuth={(u) => setUser(u)} />
+        )}
+
+        {role === 'customer' ? (
+          <>
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-semibold text-slate-900 dark:text-white">Browse & Order</h2>
+              <div className="text-sm text-slate-600 dark:text-slate-300">Items in order: <span className="font-semibold">{totalItems}</span></div>
+            </div>
+            <ProductBrowser onAdd={addToOrder} />
+            {totalItems > 0 && <OrderTracker order={order} />}
+          </>
+        ) : (
+          <AdminDashboard />)
+        }
+      </main>
+    </div>
+  );
+};
+
+export default App;
